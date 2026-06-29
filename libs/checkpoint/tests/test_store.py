@@ -69,6 +69,19 @@ async def test_async_batch_store_resilience() -> None:
     assert result2.value == doc2
 
 
+async def test_async_batch_store_aclose_stops_background_task() -> None:
+    async_store = MockAsyncBatchedStore()
+
+    task = async_store._task
+    assert task is not None
+    assert not task.done()
+
+    await async_store.aclose()
+
+    assert task.done()
+    assert async_store._task is None
+
+
 def test_get_text_at_path() -> None:
     nested_data = {
         "name": "test",

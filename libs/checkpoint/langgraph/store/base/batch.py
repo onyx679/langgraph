@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import functools
 import weakref
 from collections.abc import Callable, Iterable
@@ -73,6 +74,17 @@ class AsyncBatchedBaseStore(BaseStore):
                 self._task.cancel()
         except RuntimeError:
             pass
+
+    async def aclose(self) -> None:
+        """Cancel and await the background batching task."""
+        if self._task is None:
+            return
+        task = self._task
+        if not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        self._task = None
 
     def _ensure_task(self) -> None:
         """Ensure the background processing loop is running."""
