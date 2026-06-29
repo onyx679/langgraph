@@ -681,6 +681,26 @@ def test_vector_update_with_embedding(fake_embeddings: CharacterEmbeddings) -> N
     assert not any(r.key == "doc4" for r in results_new)
 
 
+def test_vector_update_with_index_false_clears_existing_embedding(
+    fake_embeddings: CharacterEmbeddings,
+) -> None:
+    """Test that index=False updates clear previously stored embeddings."""
+    store = InMemoryStore(
+        index={"dims": fake_embeddings.dims, "embed": fake_embeddings}
+    )
+    store.put(("test",), "doc1", {"text": "zany zebra Xerxes"})
+
+    results_initial = store.search(("test",), query="Zany Xerxes")
+    assert results_initial[0].key == "doc1"
+    assert results_initial[0].score is not None
+
+    store.put(("test",), "doc1", {"text": "new text about dogs"}, index=False)
+
+    results_after = store.search(("test",), query="Zany Xerxes")
+    doc1_after = next(r for r in results_after if r.key == "doc1")
+    assert doc1_after.score is None
+
+
 async def test_async_vector_update_with_embedding(
     fake_embeddings: CharacterEmbeddings,
 ) -> None:
@@ -714,6 +734,26 @@ async def test_async_vector_update_with_embedding(
     await store.aput(("test",), "doc4", {"text": "new text about dogs"}, index=False)
     results_new = await store.asearch(("test",), query="new text about dogs", limit=3)
     assert not any(r.key == "doc4" for r in results_new)
+
+
+async def test_async_vector_update_with_index_false_clears_existing_embedding(
+    fake_embeddings: CharacterEmbeddings,
+) -> None:
+    """Test that index=False updates clear previously stored embeddings asynchronously."""
+    store = InMemoryStore(
+        index={"dims": fake_embeddings.dims, "embed": fake_embeddings}
+    )
+    await store.aput(("test",), "doc1", {"text": "zany zebra Xerxes"})
+
+    results_initial = await store.asearch(("test",), query="Zany Xerxes")
+    assert results_initial[0].key == "doc1"
+    assert results_initial[0].score is not None
+
+    await store.aput(("test",), "doc1", {"text": "new text about dogs"}, index=False)
+
+    results_after = await store.asearch(("test",), query="Zany Xerxes")
+    doc1_after = next(r for r in results_after if r.key == "doc1")
+    assert doc1_after.score is None
 
 
 def test_vector_search_with_filters(fake_embeddings: CharacterEmbeddings) -> None:

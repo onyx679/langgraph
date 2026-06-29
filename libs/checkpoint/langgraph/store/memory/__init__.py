@@ -212,6 +212,7 @@ class InMemoryStore(BaseStore):
             self._batch_search(search_ops, queryinmem_store, results)
 
         to_embed = self._extract_texts(put_ops)
+        self._clear_vector_ops(put_ops)
         if to_embed and self.index_config and self.embeddings:
             embeddings = self.embeddings.embed_documents(list(to_embed))
             self._insertinmem_store(to_embed, embeddings)
@@ -227,6 +228,7 @@ class InMemoryStore(BaseStore):
             self._batch_search(search_ops, queryinmem_store, results)
 
         to_embed = self._extract_texts(put_ops)
+        self._clear_vector_ops(put_ops)
         if to_embed and self.index_config and self.embeddings:
             embeddings = await self.embeddings.aembed_documents(list(to_embed))
             self._insertinmem_store(to_embed, embeddings)
@@ -414,6 +416,13 @@ class InMemoryStore(BaseStore):
                     created_at=datetime.now(timezone.utc),
                     updated_at=datetime.now(timezone.utc),
                 )
+
+    def _clear_vector_ops(
+        self, put_ops: dict[tuple[tuple[str, ...], str], PutOp]
+    ) -> None:
+        if self.index_config:
+            for namespace, key in put_ops:
+                self._vectors[namespace].pop(key, None)
 
     def _extract_texts(
         self, put_ops: dict[tuple[tuple[str, ...], str], PutOp]
