@@ -268,6 +268,26 @@ def test_memory_saver_allowlist_silences_warning(
     assert result.checkpoint["channel_values"]["foo"] == obj
 
 
+def test_get_tuple_without_checkpoint_id_returns_last_written_checkpoint() -> None:
+    memory_saver = InMemorySaver()
+    config: RunnableConfig = {
+        "configurable": {"thread_id": "thread-1", "checkpoint_ns": ""}
+    }
+
+    checkpoint_2 = empty_checkpoint()
+    checkpoint_2["id"] = "2"
+    checkpoint_10 = empty_checkpoint()
+    checkpoint_10["id"] = "10"
+
+    memory_saver.put(config, checkpoint_2, {}, checkpoint_2["channel_versions"])
+    memory_saver.put(config, checkpoint_10, {}, checkpoint_10["channel_versions"])
+
+    result = memory_saver.get_tuple(config)
+
+    assert result is not None
+    assert result.config["configurable"]["checkpoint_id"] == "10"
+
+
 def test_memory_saver_strict_blocks_unregistered(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
