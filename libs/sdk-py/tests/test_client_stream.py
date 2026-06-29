@@ -108,6 +108,25 @@ def test_stream_sse():
         assert len(parts) == 79
 
 
+def test_sse_decoder_ignores_heartbeat_after_event_id() -> None:
+    """A heartbeat comment must not dispatch an empty event.
+
+    The last event ID persists across dispatches, so the decoder must not treat
+    its presence alone as buffered event content.
+    """
+
+    decoder = SSEDecoder()
+
+    assert decoder.decode(b"id: 1") is None
+    assert decoder.decode(b"event: values") is None
+    assert decoder.decode(b'data: {"ok": true}') is None
+    assert decoder.decode(b"") == StreamPart(event="values", data={"ok": True}, id="1")
+
+    assert decoder.decode(b": heartbeat") is None
+    assert decoder.decode(b"") is None
+    assert decoder.last_event_id == "1"
+
+
 # --- HTTP client streaming ---
 
 
