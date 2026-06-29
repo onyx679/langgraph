@@ -605,6 +605,28 @@ def test_stream():
         ((), {"__interrupt__": ()}),
     ]
 
+    mock_sync_client.runs.stream.return_value = [
+        StreamPart(event="updates|child|subgraph", data={"chunk": "data5"}),
+    ]
+
+    stream_parts = []
+    for stream_part in remote_pregel.stream(
+        {"input": "data"},
+        config={
+            "configurable": {
+                "thread_id": "thread_1",
+                "checkpoint_ns": "parent|remote",
+            }
+        },
+        stream_mode=["updates"],
+        subgraphs=True,
+    ):
+        stream_parts.append(stream_part)
+
+    assert stream_parts == [
+        (("parent", "remote", "child", "subgraph"), "updates", {"chunk": "data5"}),
+    ]
+
 
 @pytest.mark.anyio
 async def test_astream():
@@ -814,6 +836,30 @@ async def test_astream():
         (("my", "subgraph"), {"chunk": "data3"}),
         (("hello", "subgraph"), {"chunk": "data4"}),
         (("bye", "subgraph"), {"__interrupt__": ()}),
+    ]
+
+    async_iter = MagicMock()
+    async_iter.__aiter__.return_value = [
+        StreamPart(event="updates|child|subgraph", data={"chunk": "data5"}),
+    ]
+    mock_async_client.runs.stream.return_value = async_iter
+
+    stream_parts = []
+    async for stream_part in remote_pregel.astream(
+        {"input": "data"},
+        config={
+            "configurable": {
+                "thread_id": "thread_1",
+                "checkpoint_ns": "parent|remote",
+            }
+        },
+        stream_mode=["updates"],
+        subgraphs=True,
+    ):
+        stream_parts.append(stream_part)
+
+    assert stream_parts == [
+        (("parent", "remote", "child", "subgraph"), "updates", {"chunk": "data5"}),
     ]
 
 
