@@ -10,6 +10,7 @@ from langgraph.checkpoint.base import (
 )
 
 from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.checkpoint.sqlite.utils import _metadata_predicate, search_where
 
 
@@ -307,3 +308,52 @@ class TestSqliteSaver:
             # Nested digit-starting key via dotted path
             results = list(saver.list(None, filter={"user.123abc": "ok2"}))
             assert len(results) == 1
+
+
+async def test_sync_async_ordering_and_before_cursor_parity(tmp_path) -> None:
+    """Sync and async SQLite savers should agree on ordering semantics."""
+
+    config: RunnableConfig = {
+        "configurable": {"thread_id": "thread-parity", "checkpoint_ns": ""}
+    }
+    checkpoint_ids = ["0001", "0002", "0003"]
+    checkpoints = [
+        create_checkpoint(empty_checkpoint(), {}, i, id=checkpoint_id)
+        for i, checkpoint_id in enumerate(checkpoint_ids, start=1)
+    ]
+    metadata: list[CheckpointMetadata] = [
+        {"source": "update", "step": i} for i in range(len(checkpoints))
+    ]
+
+    with SqliteSaver.from_conn_string(str(tmp_path / "sync.sqlite")) as saver:
+        sync_configs = [
+            saver.put(config, checkpoint, metadata_, {})
+            for checkpoint, metadata_ in zip(checkpoints, metadata, strict=True)
+        ]
+        sync_latest = saver.get_tuple(config)
+        sync_list = list(saver.list(config))
+        sync_before = list(saver.list(config, before=sync_configs[-1]))
+
+    async with AsyncSqliteSaver.from_conn_string(
+        str(tmp_path / "async.sqlite")
+    ) as saver:
+        async_configs = [
+            await saver.aput(config, checkpoint, metadata_, {})
+            for checkpoint, metadata_ in zip(checkpoints, metadata, strict=True)
+        ]
+        async_latest = await saver.aget_tuple(config)
+        async_list = [checkpoint async for checkpoint in saver.alist(config)]
+        async_before = [
+            checkpoint
+            async for checkpoint in saver.alist(config, before=async_configs[-1])
+        ]
+
+    assert sync_latest is not None
+    assert async_latest is not None
+    assert sync_latest.checkpoint["id"] == async_latest.checkpoint["id"] == "0003"
+    assert [item.checkpoint["id"] for item in sync_list] == [
+        item.checkpoint["id"] for item in async_list
+    ] == ["0003", "0002", "0001"]
+    assert [item.checkpoint["id"] for item in sync_before] == [
+        item.checkpoint["id"] for item in async_before
+    ] == ["0002", "0001"]
