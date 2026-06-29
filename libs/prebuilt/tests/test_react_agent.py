@@ -22,6 +22,7 @@ from langchain_core.messages import (
     ToolCall,
     ToolMessage,
 )
+from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import RunnableConfig, RunnableLambda
 from langchain_core.tools import InjectedToolCallId, ToolException
 from langchain_core.tools import tool as dec_tool
@@ -143,6 +144,35 @@ async def test_no_prompt_async(async_checkpointer: BaseCheckpointSaver) -> None:
         "step": 1,
     }
     assert saved.pending_writes == []
+
+
+@pytest.mark.parametrize("version", REACT_TOOL_CALL_VERSIONS)
+def test_malformed_function_call_finish_reason_raises(version: str) -> None:
+    class MalformedFunctionCallModel(FakeToolCallingModel):
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            return ChatResult(
+                generations=[
+                    ChatGeneration(
+                        message=AIMessage(
+                            content="",
+                            id="0",
+                            response_metadata={
+                                "finish_reason": "MALFORMED_FUNCTION_CALL"
+                            },
+                        )
+                    )
+                ]
+            )
+
+    @dec_tool
+    def search(query: str) -> str:
+        """Search the knowledge base."""
+        return f"Results for: {query}"
+
+    agent = create_react_agent(MalformedFunctionCallModel(), [search], version=version)
+
+    with pytest.raises(ValueError, match="MALFORMED_FUNCTION_CALL"):
+        agent.invoke({"messages": [HumanMessage("what is RTO")]})
 
 
 def test_system_message_prompt():

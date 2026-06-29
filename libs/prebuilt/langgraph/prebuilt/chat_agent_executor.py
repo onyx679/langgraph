@@ -271,6 +271,20 @@ def _validate_chat_history(
     raise ValueError(error_message)
 
 
+def _raise_on_malformed_function_call(message: BaseMessage) -> None:
+    if not isinstance(message, AIMessage) or message.tool_calls:
+        return
+
+    if message.response_metadata.get("finish_reason") != "MALFORMED_FUNCTION_CALL":
+        return
+
+    raise ValueError(
+        "LLM returned finish_reason='MALFORMED_FUNCTION_CALL' without tool calls. "
+        "The model failed to generate a valid tool call; retry the model call or "
+        "handle the provider error before continuing the agent loop."
+    )
+
+
 @deprecated(
     "create_react_agent has been moved to `langchain.agents`. Please update your import to `from langchain.agents import create_agent`.",
     category=LangGraphDeprecatedSinceV10,
@@ -831,6 +845,7 @@ def create_react_agent(
     def should_continue(state: StateSchema) -> str | list[Send]:
         messages = _get_state_value(state, "messages")
         last_message = messages[-1]
+        _raise_on_malformed_function_call(last_message)
         # If there is no function call, then we finish
         if not isinstance(last_message, AIMessage) or not last_message.tool_calls:
             if post_model_hook is not None:
