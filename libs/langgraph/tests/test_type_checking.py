@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from operator import add
-from typing import Annotated, Any
+from typing import Annotated, Any, get_type_hints
 
 import pytest
 from langchain_core.runnables import RunnableConfig
@@ -8,6 +8,8 @@ from pydantic import BaseModel
 from typing_extensions import TypedDict
 
 from langgraph.graph import StateGraph
+from langgraph.pregel.main import Pregel
+from langgraph.pregel.protocol import PregelProtocol
 from langgraph.types import Command
 
 
@@ -105,6 +107,12 @@ def test_input_state_specified() -> None:
 
     new_graph.invoke({"something": 1})
     new_graph.invoke({"something": 2, "info": ["hello", "world"]})  # type: ignore[arg-type]
+
+
+def test_aupdate_state_values_annotation_matches_protocol() -> None:
+    assert get_type_hints(Pregel.aupdate_state)["values"] == get_type_hints(
+        PregelProtocol.aupdate_state
+    )["values"]
 
 
 @pytest.mark.skip("Purely for type checking")
